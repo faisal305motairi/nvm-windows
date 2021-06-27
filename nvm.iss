@@ -1,22 +1,24 @@
 #define MyAppName "NVM for Windows"
 #define MyAppShortName "nvm"
 #define MyAppLCShortName "nvm"
-#define MyAppVersion "1.0.3"
-#define MyAppPublisher "Ecor Ventures, LLC"
-#define MyAppURL "http://github.com/coreybutler/nvm"
+#define MyAppVersion ""
+#define MyAppPublisher "Ecor Ventures LLC"
+#define MyAppURL "https://github.com/coreybutler/nvm-windows"
 #define MyAppExeName "nvm.exe"
-#define MyIcon "nodejs.ico"
-#define ProjectRoot "C:\Users\Corey\Documents\workspace\Experiments\nvm"
+#define MyIcon "bin\nodejs.ico"
+#define ProjectRoot "."
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
 ; Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 PrivilegesRequired=admin
+SignTool=MsSign $f
+SignedUninstaller=yes
 AppId=40078385-F676-4C61-9A9C-F9028599D6D3
 AppName={#MyAppName}
-AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} {#MyAppVersion}
+AppVersion={%AppVersion}
+AppVerName={#MyAppName} {%AppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -26,7 +28,7 @@ DisableDirPage=no
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 LicenseFile={#ProjectRoot}\LICENSE
-OutputDir={#ProjectRoot}\dist\{#MyAppVersion}
+OutputDir={#ProjectRoot}\dist\{%AppVersion}
 OutputBaseFilename={#MyAppLCShortName}-setup
 SetupIconFile={#ProjectRoot}\{#MyIcon}
 Compression=lzma
@@ -35,7 +37,7 @@ ChangesEnvironment=yes
 DisableProgramGroupPage=yes
 ArchitecturesInstallIn64BitMode=x64 ia64
 UninstallDisplayIcon={app}\{#MyIcon}
-AppCopyright=Copyright (C) 2014 Corey Butler.
+AppCopyright=Copyright (C) 2018 Ecor Ventures LLC and contributors.
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -44,7 +46,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0,6.1
 
 [Files]
-Source: "{#ProjectRoot}\bin\*"; DestDir: "{app}"; BeforeInstall: PreInstall; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ProjectRoot}\bin\*"; DestDir: "{app}"; BeforeInstall: PreInstall; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{#ProjectRoot}\bin\install.cmd"
 
 [Icons]
 Name: "{group}\{#MyAppShortName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{#MyIcon}"
@@ -55,7 +57,7 @@ var
   SymlinkPage: TInputDirWizardPage;
 
 function IsDirEmpty(dir: string): Boolean;
-var 
+var
   FindRec: TFindRec;
   ct: Integer;
 begin
@@ -73,11 +75,11 @@ begin
   end;
 end;
 
-//function getInstalledVErsions(dir: string): 
-var 
+//function getInstalledVErsions(dir: string):
+var
   nodeInUse: string;
 
-function TakeControl(np: string; nv: string): string;
+procedure TakeControl(np: string; nv: string);
 var
   path: string;
 begin
@@ -93,7 +95,7 @@ begin
   StringChangeEx(path,np+';;',';',True);
 
   RegWriteExpandStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Path', path);
-  
+
   RegQueryStringValue(HKEY_CURRENT_USER,
     'Environment',
     'Path', path);
@@ -105,7 +107,7 @@ begin
   RegWriteExpandStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', path);
 
   nodeInUse := ExpandConstant('{app}')+'\'+nv;
-  
+
 end;
 
 function Ansi2String(AString:AnsiString):String;
@@ -134,7 +136,7 @@ begin
   // Create a file to check for Node.JS
   TmpJS := ExpandConstant('{tmp}') + '\nvm_check.js';
   SaveStringToFile(TmpJS, 'console.log(require("path").dirname(process.execPath));', False);
-  
+
   // Execute the node file and save the output temporarily
   TmpResultFile := ExpandConstant('{tmp}') + '\nvm_node_check.txt';
   Exec(ExpandConstant('{cmd}'), '/C node "'+TmpJS+'" > "' + TmpResultFile + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -147,9 +149,9 @@ begin
     Exec(ExpandConstant('{cmd}'), '/C node -v > "' + TmpResultFile + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     LoadStringFromFile(TmpResultFile, stdout);
     NodeVersion := Trim(Ansi2String(stdout));
-    msg1 := MsgBox('Node '+NodeVersion+' is already installed. Do you want NVM to control this version?', mbConfirmation, MB_YESNO) = IDNO;
+    msg1 := SuppressibleMsgBox('Node '+NodeVersion+' is already installed. Do you want NVM to control this version?', mbConfirmation, MB_YESNO, IDYES) = IDNO;
     if msg1 then begin
-      msg2 := MsgBox('NVM cannot run in parallel with an existing Node.js installation. Node.js must be uninstalled before NVM can be installed, or you must allow NVM to control the existing installation. Do you want NVM to control node '+NodeVersion+'?', mbConfirmation, MB_YESNO) = IDYES;
+      msg2 := SuppressibleMsgBox('NVM cannot run in parallel with an existing Node.js installation. Node.js must be uninstalled before NVM can be installed, or you must allow NVM to control the existing installation. Do you want NVM to control node '+NodeVersion+'?', mbConfirmation, MB_YESNO, IDYES) = IDYES;
       if msg2 then begin
         TakeControl(NodePath, NodeVersion);
       end;
@@ -163,7 +165,7 @@ begin
       TakeControl(NodePath, NodeVersion);
     end;
   end;
-  
+
   // Make sure the symlink directory doesn't exist
   if DirExists(SymlinkPage.Values[0]) then begin
     // If the directory is empty, just delete it since it will be recreated anyway.
@@ -172,7 +174,7 @@ begin
       RemoveDir(SymlinkPage.Values[0]);
     end;
     if not dir1 then begin
-      msg3 := MsgBox(SymlinkPage.Values[0]+' will be overwritten and all contents will be lost. Do you want to proceed?', mbConfirmation, MB_OKCANCEL) = IDOK;
+      msg3 := SuppressibleMsgBox(SymlinkPage.Values[0]+' will be overwritten and all contents will be lost. Do you want to proceed?', mbConfirmation, MB_OKCANCEL, IDOK) = IDOK;
       if msg3 then begin
         RemoveDir(SymlinkPage.Values[0]);
       end;
@@ -199,15 +201,15 @@ var
   path: string;
   nvm_symlink: string;
 begin
-  MsgBox('Removing NVM for Windows will remove the nvm command and all versions of node.js, including global npm modules.', mbInformation, MB_OK);
-  
+  SuppressibleMsgBox('Removing NVM for Windows will remove the nvm command and all versions of node.js, including global npm modules.', mbInformation, MB_OK, IDOK);
+
   // Remove the symlink
   RegQueryStringValue(HKEY_LOCAL_MACHINE,
     'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
     'NVM_SYMLINK', nvm_symlink);
   RemoveDir(nvm_symlink);
-      
-  // Clean the registry    
+
+  // Clean the registry
   RegDeleteValue(HKEY_LOCAL_MACHINE,
     'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
     'NVM_HOME')
@@ -228,9 +230,9 @@ begin
   StringChangeEx(path,'%NVM_HOME%','',True);
   StringChangeEx(path,'%NVM_SYMLINK%','',True);
   StringChangeEx(path,';;',';',True);
-  
+
   RegWriteExpandStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Path', path);
-  
+
   RegQueryStringValue(HKEY_CURRENT_USER,
     'Environment',
     'Path', path);
@@ -238,9 +240,9 @@ begin
   StringChangeEx(path,'%NVM_HOME%','',True);
   StringChangeEx(path,'%NVM_SYMLINK%','',True);
   StringChangeEx(path,';;',';',True);
-  
+
   RegWriteExpandStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', path);
-  
+
   Result := True;
 end;
 
@@ -249,7 +251,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   path: string;
 begin
-  if CurStep = ssPostInstall then 
+  if CurStep = ssPostInstall then
   begin
     SaveStringToFile(ExpandConstant('{app}\settings.txt'), 'root: ' + ExpandConstant('{app}') + #13#10 + 'path: ' + SymlinkPage.Values[0] + #13#10, False);
 
@@ -306,7 +308,6 @@ end;
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C ""mklink /D ""{code:getSymLink}"" ""{code:getCurrentVersion}"""" "; Check: isNodeAlreadyInUse; Flags: runhidden;
-Filename: "{cmd}"; Parameters: "/K ""set PATH={app};%PATH% && cls && nvm"""; Flags: runasoriginaluser postinstall;
 
 [UninstallDelete]
 Type: files; Name: "{app}\nvm.exe";
